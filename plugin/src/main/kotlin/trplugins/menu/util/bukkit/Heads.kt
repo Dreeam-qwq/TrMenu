@@ -3,6 +3,7 @@ package trplugins.menu.util.bukkit
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.mojang.authlib.GameProfile
+import com.mojang.authlib.properties.PropertyMap
 import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.OfflinePlayer
@@ -128,12 +129,17 @@ object Heads {
 
         val profileValue = meta.getProperty<Any>("profile") ?: return null
 
-        val gameProfile: GameProfile? = if (profileValue is GameProfile) {
-            profileValue
-        } else {
-            // Minecraft 1.21+ 将 profile 字段改为 ResolvableProfile
-            val optional = runCatching { profileValue.invokeMethod<Any>("gameProfile") }.getOrNull()
-            runCatching { optional?.invokeMethod<GameProfile>("orElse", null) }.getOrNull()
+        val gameProfile: GameProfile? = profileValue as? GameProfile
+                // Minecraft 1.21+ 将 profile 字段改为 ResolvableProfile
+            ?: (profileValue.getProperty<GameProfile>("partialProfile"))
+
+        // Minecraft 1.21.9+ Mojang 修改了 authLib 中的 GameProfile 类为 record 记录类
+        // 如果使用 getProperties() 会出错
+        if (MinecraftVersion.versionId >= 12109){
+            val propertyMap = gameProfile?.getProperty<PropertyMap>("properties")
+            propertyMap?.values()?.forEach {
+                if (it.getProperty<String>(NAME) == "textures") return it.getProperty<String>(VALUE)
+            }
         }
 
         gameProfile?.properties?.values()?.forEach {
